@@ -1,246 +1,57 @@
 
-<!DOCTYPE html>
-<html lang="th">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AR ตามพิกัด GPS - 0214381 Lab 3</title>
+const status = document.getElementById("status");
 
-  <!-- A-Frame 1.6.0 และ AR.js 3.4.8 -->
-  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@ar-js-org/ar.js@3.4.8/aframe/build/aframe-ar.js"></script>
+function startGPS() {
+  if (!navigator.geolocation) {
+    status.textContent = "อุปกรณ์ไม่รองรับ GPS";
+    return;
+  }
 
-  <script>
-    // ให้ข้อความหันเข้าหากล้อง
-    AFRAME.registerComponent('face-me', {
-      tick: function () {
-        const cam = this.el.sceneEl.camera;
-        if (!cam) return;
+  status.textContent = "กำลังค้นหาตำแหน่ง GPS...";
 
-        const me = new THREE.Vector3();
-        const target = new THREE.Vector3();
+  const options = {
+    enableHighAccuracy: true,
+    timeout: 20000,
+    maximumAge: 0
+  };
 
-        this.el.object3D.getWorldPosition(me);
-        cam.getWorldPosition(target);
+  navigator.geolocation.getCurrentPosition(
+    function(position) {
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
 
-        target.y = me.y;
-        this.el.object3D.lookAt(target);
-      }
-    });
-  </script>
+      status.textContent =
+        `พบตำแหน่ง GPS แล้ว!
+         Latitude: ${lat.toFixed(6)}
+         Longitude: ${lng.toFixed(6)}
+         ความแม่นยำ: ±${Math.round(accuracy)} เมตร`;
 
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-    }
+      console.log("GPS:", lat, lng);
+    },
 
-    #hud {
-      position: fixed;
-      top: 10px;
-      left: 10px;
-      right: 10px;
-      z-index: 10;
-      background: rgba(42,27,92,.85);
-      color: white;
-      border-radius: 12px;
-      padding: 12px;
-      font: 14px/1.7 system-ui, sans-serif;
-    }
+    function(error) {
+      let message = "";
 
-    #hud b {
-      color: #FFCE54;
-    }
-  </style>
-</head>
-
-<body>
-
-  <div id="hud">
-    กำลังค้นหาตำแหน่ง GPS...
-  </div>
-
-  <a-scene
-    vr-mode-ui="enabled: false"
-    arjs="sourceType: webcam; videoTexture: true; debugUIEnabled: false"
-    renderer="antialias: true; alpha: true">
-
-    <!-- กล้อง GPS -->
-    <a-camera gps-new-camera="gpsMinDistance: 1"></a-camera>
-
-    <!-- จุด A: กล่องสีม่วง -->
-    <a-entity
-      data-name="จุด A"
-      gps-new-entity-place="latitude: 7.808600; longitude: 99.941396">
-
-      <a-box
-        color="#5A3EBD"
-        scale="4 4 4"
-        position="0 2 0"
-        animation="property: rotation; to: 0 360 0; loop: true; dur: 8000; easing: linear">
-      </a-box>
-
-      <a-text
-        face-me
-        value="POINT A"
-        align="center"
-        color="#FFFFFF"
-        width="40"
-        position="0 6 0">
-      </a-text>
-
-    </a-entity>
-
-    <!-- จุด B: ลูกบอลสีชมพู -->
-    <a-entity
-      data-name="จุด B"
-      gps-new-entity-place="latitude: 7.808330; longitude: 99.941666">
-
-      <a-sphere
-        color="#FF78AA"
-        radius="2.5"
-        position="0 2.5 0">
-      </a-sphere>
-
-      <a-text
-        face-me
-        value="POINT B"
-        align="center"
-        color="#FFFFFF"
-        width="40"
-        position="0 7 0">
-      </a-text>
-
-    </a-entity>
-
-    <!-- จุด C: ป้ายต้อนรับ -->
-    <a-entity
-      data-name="จุด C"
-      gps-new-entity-place="latitude: 7.808060; longitude: 99.941396">
-
-      <a-entity face-me position="0 4 0">
-
-        <a-plane
-          color="#2A1B5C"
-          width="14"
-          height="5">
-        </a-plane>
-
-        <a-text
-          value="WELCOME C"
-          align="center"
-          color="#FFCE54"
-          width="40"
-          position="0 0 0.1">
-        </a-text>
-
-      </a-entity>
-    </a-entity>
-
-  </a-scene>
-
-  <script>
-    const hud = document.getElementById('hud');
-    const cam = document.querySelector('[gps-new-camera]');
-
-    const places = [
-      ...document.querySelectorAll('[gps-new-entity-place]')
-    ];
-
-    let me = null;
-    let accuracy = null;
-    let gpsError = '';
-
-    // รับตำแหน่งจากกล้อง GPS
-    cam.addEventListener('gps-camera-update-position', e => {
-      me = e.detail.position;
-    });
-
-    // ตรวจสอบความแม่นยำ GPS
-    if (navigator.geolocation) {
-      navigator.geolocation.watchPosition(
-        p => {
-          accuracy = p.coords.accuracy;
-          gpsError = '';
-        },
-        err => {
-          gpsError = err.message;
-        },
-        {
-          enableHighAccuracy: true,
-          maximumAge: 1000,
-          timeout: 15000
-        }
-      );
-    }
-
-    // คำนวณระยะทางด้วยสูตร Haversine
-    function calculateDistance(lat1, lon1, lat2, lon2) {
-      const R = 6371000;
-
-      const rad = deg => deg * Math.PI / 180;
-
-      const dLat = rad(lat2 - lat1);
-      const dLon = rad(lon2 - lon1);
-
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(rad(lat1)) *
-        Math.cos(rad(lat2)) *
-        Math.sin(dLon / 2) ** 2;
-
-      return R * 2 * Math.atan2(
-        Math.sqrt(a),
-        Math.sqrt(1 - a)
-      );
-    }
-
-    // อัปเดตข้อมูลทุกวินาที
-    setInterval(() => {
-
-      if (!me) {
-        hud.innerHTML = gpsError
-          ? 'ไม่สามารถรับตำแหน่ง GPS: ' + gpsError
-          : 'กำลังค้นหาตำแหน่ง GPS...';
-        return;
+      switch (error.code) {
+        case 1:
+          message = "กรุณาอนุญาตให้เว็บไซต์ใช้ตำแหน่ง";
+          break;
+        case 2:
+          message = "ไม่พบสัญญาณ GPS กรุณาเปิด Location";
+          break;
+        case 3:
+          message = "GPS ใช้เวลานานเกินไป กรุณาลองใหม่";
+          break;
+        default:
+          message = "เกิดข้อผิดพลาด GPS";
       }
 
-      const rows = places.map(p => {
+      status.textContent = message;
+    },
 
-        // อ่านพิกัดจาก Entity โดยตรง
-        const coords = p.getAttribute('gps-new-entity-place');
+    options
+  );
+}
 
-        const distance = calculateDistance(
-          me.latitude,
-          me.longitude,
-          Number(coords.latitude),
-          Number(coords.longitude)
-        );
-
-        return `
-          ${p.dataset.name}:
-          <b>${Math.round(distance)} เมตร</b>
-        `;
-      }).join('<br>');
-
-      const acc = accuracy !== null
-        ? '± ' + Math.round(accuracy) + ' เมตร'
-        : 'กำลังตรวจสอบ';
-
-      hud.innerHTML = `
-        ตำแหน่งของฉัน:
-        <b>${me.latitude.toFixed(6)},
-        ${me.longitude.toFixed(6)}</b>
-        <br>
-        ความแม่นยำ GPS:
-        <b>${acc}</b>
-        <br>
-        ${rows}
-      `;
-
-    }, 1000);
-
-  </script>
-
-</body>
-</html>
+startGPS();
